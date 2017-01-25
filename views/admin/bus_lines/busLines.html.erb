@@ -1,0 +1,565 @@
+<script type="text/javascript" src="http://api.map.baidu.com/api?v=2.0&ak=py0HjwCUjEXL9gNnA6FoY3ckQxO7iSLp"></script>
+<script type="text/javascript" src="http://developer.baidu.com/map/jsdemo/demo/convertor.js"></script>
+<script type="text/javascript">
+suspect = <%=@suspect %>;
+
+    var TOTAL_CALL = 0;
+    var MISS_CALL = 0;
+    window.onload = function(){
+    	if('<%=params[:status]%>' == ''){
+            $('#busstatusTypeSelector').val(1);
+        }
+        else{
+            $('#busstatusTypeSelector').val('<%=params[:status]%>');
+        }
+        if('<%=params[:kind]%>' == ''){
+            $('#buskindTypeSelector').val(0);
+        }
+        else{
+            $('#buskindTypeSelector').val('<%=params[:kind]%>');
+        }
+        if('<%=params[:page]%>' == ''){
+            $('#page').val(1);
+        }
+        else{
+            $('#page').val('<%=params[:page]%>');
+        }
+        if('<%=params[:line_number]%>' == 'undefined'){
+        	$('#line_number').val('');
+        }
+        else{
+        	$('#line_number').val('<%=params[:line_number]%>');
+        }
+    }
+    //公交车站展示
+    function checkStations(lineid,names,guid,update){
+        $('#bus_id').text(lineid);
+        $('#bus_guid').text(guid);
+        $('#bus_update').text(update);
+    	$('#my-modify-modal').modal();
+
+    	getStation(lineid,names,function(data){
+    		if(typeof(data) == 'object'){
+    			var html = "<div align='center'><table border=1>";
+    			count = 1;
+    			for(var k in data){
+    				html += "<tr>";
+    				html += "<td>";
+    				html += count;
+    				html += ".       ";
+    				html += "</td>";
+    				html += "<td>";
+    				html += data[k].station.c_name;
+    				html += "</td>";
+    				html += "</tr>";
+    				count += 1;
+    			}
+    			html += "</table></div>"
+    			$('#bus_station_name').append(html);
+    			var name = names + '站点展示'
+    			$('#title').append(name);
+    		}
+    	});
+    	$('#bus_station_name').empty();
+    	$('#title').empty();
+
+    }
+
+    //返回指定公交线路的公交站台
+    function getStation(lineid,names,callBack){
+    	$.ajax({
+			url: '/admin/BusLines/getStations',
+			type: 'GET',
+            data: {
+                lineid:lineid,
+            },
+			success: function(data){
+				callBack(data);
+			}
+		});
+    }
+
+    //返回数据库中distinct公交线路名称
+    function getAllLines(callBack){
+        $.ajax({
+			url: '/admin/BusLinesGetAllLines',
+			type: 'POST',
+			success: function(data){
+				callBack(data);
+			}
+		});
+    }
+
+    //查找线路
+    function searchKeyWordChanged(){
+        var line_number = $('#line_number').val();
+        var statusType = $('#busstatusTypeSelector').val();
+        var kind = $('#buskindTypeSelector').val();
+        suspect = 0;
+        window.location.replace('/admin/BusLines?status='+statusType+'&kind='+kind+'&line_number='+line_number+'&suspect='+suspect+'&page=1');
+    }
+
+    function searchSuspectedData(){
+        var line_number = $('#line_number').val();
+        var statusType = $('#busstatusTypeSelector').val();
+        var kind = $('#buskindTypeSelector').val();
+        suspect = 1;
+        window.location.replace('/admin/BusLines?status='+statusType+'&kind='+kind+'&line_number='+line_number+'&suspect='+suspect+'&page=1'); 
+    }
+
+    function toPage(pages){
+        var page = $('#page').val();
+        var line_number = $('#line_number').val();
+        var statusType = $('#busstatusTypeSelector').val();
+        var kind = $('#buskindTypeSelector').val();
+        if (parseInt(page) > parseInt(pages)){page = pages;}
+        if (parseInt(page) == 0){page = 1;}
+        window.location.replace('/admin/BusLines?status='+statusType+'&kind='+kind+'&line_number='+line_number+'&suspect='+suspect+'&page='+page);
+    }
+    function bus_linesStatusChange(id,status){
+        $.ajax({
+			url: '/admin/BusLinesStatusChange',
+			type: 'POST',
+            data: {
+                id:id,
+                is_inactive:status,
+            },
+			success: function(data){
+				if(data == "1"){
+					alert('更新成功');
+					location.reload();
+				}else {alert('更新失败，请稍后再试！');}
+			},
+			error: function(error){
+				alert('更新失败，请稍后再试！');
+			}
+		});
+    }
+
+    //百度异步加载地图
+    function loadJScript(elementId,file) {
+        var script = document.createElement(elementId);
+        script.type = "text/javascript";
+        script.src = "http://api.map.baidu.com/api?v=2.0&ak=py0HjwCUjEXL9gNnA6FoY3ckQxO7iSLp7&callback=" + file;
+        document.body.appendChild(script);
+    }
+
+    //画查看地图
+    function drawMap(elementId, lineid, names, line_number) {
+      // 百度地图API功能
+      var map = new BMap.Map(elementId);            // 创建Map实例
+      map.centerAndZoom("苏州", 12);
+      map.enableScrollWheelZoom();                 //启用滚轮放大缩小
+
+        //左上角，添加默认缩放平移控件
+      var top_left_navigation = new BMap.NavigationControl();
+      map.addControl(top_left_navigation);
+
+      //显示公交轨迹
+      var busline = new BMap.BusLineSearch(map,{
+        renderOptions:{map:map,panel:"r-result"},
+          onGetBusListComplete: function(result){
+             if(result) {
+               var fstLine = result.getBusListItem(0);  //获取第一个公交列表显示到map上
+               busline.getBusLine(fstLine);
+             }
+         }
+        });
+
+      function busSearch(){
+        var busName = line_number;              //line_number ＝ ？路
+        busline.getBusList(busName);
+      }
+      busSearch();
+    }
+
+    //更新公交轨迹需要用百度地图API，但没有必要显示地图
+    function drawFakeMap(elementId){
+        // 百度地图API功能
+        var map = new BMap.Map(elementId);            // 创建Map实例
+        map.centerAndZoom(new BMap.Point(120.628132,31.311971), 12);
+
+        //var FakeBusLine = ["快线2号","快线1号","快线8号"];
+        getAllLines(function(data){
+            if(typeof(data) == 'object'){
+                var busLineArr = new Array();
+                for (var i in data){
+                    busLineArr.push(data[i].line.name);
+                }
+
+                //公交上行线
+                var busline = new BMap.BusLineSearch(map,{
+                    //renderOptions:{map:map},
+                    onGetBusListComplete: function(result){
+                       if(result) {
+                           var fstLine = result.getBusListItem(0);  //获取公交列表的第一个（上行）
+                           busline.getBusLine(fstLine);
+                           busline.setGetBusLineCompleteCallback(function(lineResults){
+                               if(lineResults){
+                                   //lineResults.name 的格式为： XXX路（首站－末站） 取的是XXX
+                                   var name = lineResults.name.substring(0,lineResults.name.indexOf("路"));
+                                   if(name == ''){
+                                       //如果没取到任何东西说明 name 里不含“路”这个字 －> 那就是快线的情况了，取前4个字符
+                                       name = lineResults.name.substring(0,4);          //快线X号
+                                   }
+                                   var start = lineResults.getBusStation(0).name;
+                                   var end = lineResults.getBusStation(lineResults.getNumBusStations()-1).name;
+                                   var pts = lineResults.getPath();
+
+                                   updatePoints(name,start,end,pts,0,function(data){
+                                       TOTAL_CALL += 1;
+                                       if(data != "1"){
+                                           MISS_CALL += 1;
+                                           $('#update-info').append("<tr style='color:#f30505'><td>"+lineResults.name+"</td><td>"+"无法匹配"+"</td></tr>");
+                                           $('#count-info').html("总计："+TOTAL_CALL+"  成功："+(TOTAL_CALL-MISS_CALL)+" 失败："+MISS_CALL);
+                                       }
+                                       else{
+                                        $('#update-info').append("<tr><td>"+lineResults.name+"</td><td>"+"更新成功"+"</td></tr>");
+                                        $('#count-info').html("总计："+TOTAL_CALL+"  成功："+(TOTAL_CALL-MISS_CALL)+" 失败："+MISS_CALL);
+                                       }
+                                   });
+                               }
+                           });
+                       }
+                    }
+                });
+
+                //公交下行线
+                var buslineDown = new BMap.BusLineSearch(map,{
+                    onGetBusListComplete: function(result){
+                        if(result){
+                            var sndLine = result.getBusListItem(1);  //获取公交列表的第二个（下行）
+                            if(sndLine){
+                                buslineDown.getBusLine(sndLine);
+                                buslineDown.setGetBusLineCompleteCallback(function(lineResults){
+                                    if(lineResults){
+                                        var name = lineResults.name.substring(0,lineResults.name.indexOf("路"));
+                                        if(name == ''){
+                                            name = lineResults.name.substring(0,4);     //快线X号
+                                        }
+                                        var start = lineResults.getBusStation(0).name;
+                                        var end = lineResults.getBusStation(lineResults.getNumBusStations()-1).name;
+                                        var pts = lineResults.getPath();
+
+                                        updatePoints(name,start,end,pts,1,function(data){
+                                            TOTAL_CALL += 1;
+                                            if(data != "1"){
+                                                MISS_CALL += 1;
+                                                $('#update-info').append("<tr style='color:#f30505'><td>"+lineResults.name+"</td><td>"+"无法匹配"+"</td></tr>");
+                                                $('#count-info').html("总计："+TOTAL_CALL+"  成功："+(TOTAL_CALL-MISS_CALL)+" 失败："+MISS_CALL);
+                                            }
+                                            else{
+                                                $('#update-info').append("<tr><td>"+lineResults.name+"</td><td>"+"更新成功"+"</td></tr>");
+                                                $('#count-info').html("总计："+TOTAL_CALL+"  成功："+(TOTAL_CALL-MISS_CALL)+" 失败："+MISS_CALL);
+                                            }
+                                        });
+                                    }
+                                });
+                            }
+                        }
+                    }
+                });
+
+                //一些环线百度地图排序有问题，只能加上东南西北线路来查找不然会返回错误线路
+                function busSearch(){
+                    for(var k in busLineArr){
+                        var busName = busLineArr[k];
+                        if(busName == "120路"){
+                            busNameEast = "120路东线";
+                            busNameWest = "120路西线";
+                            busline.getBusList(busNameEast);
+                            busline.getBusList(busNameWest);
+                        }
+                        else if(busName == "游1"){
+                            busNameNorth = "游1路北线"
+                            busNameSouth = "游1路南线"
+                            busline.getBusList(busNameNorth);
+                            busline.getBusList(busNameSouth);
+                        }
+                        else if(busName == "100路"){
+                            busNameNorth = "100路北线"
+                            busNameSouth = "100路南线"
+                            busline.getBusList(busNameNorth);
+                            busline.getBusList(busNameSouth);
+                        }
+                        else if(busName == "130路"){
+                            busNameNorth = "130路北线"
+                            busNameSouth = "130路南线"
+                            busline.getBusList(busNameNorth);
+                            busline.getBusList(busNameSouth);
+                        }
+                        else if(busName == "10路"){
+                            busNameNorth = "10路北线"
+                            busNameSouth = "10路南线"
+                            busline.getBusList(busNameNorth);
+                            busline.getBusList(busNameSouth);
+                        }
+                        else if(busName == "60路"){
+                            busNameNorth = "60路北线"
+                            busNameSouth = "60路南线"
+                            busline.getBusList(busNameNorth);
+                            busline.getBusList(busNameSouth);
+                        }
+                        else if(busName == "150路"){
+                            busNameNorth = "150路北线"
+                            busNameSouth = "150路南线"
+                            busline.getBusList(busNameNorth);
+                            busline.getBusList(busNameSouth);
+                        }
+                        else if(busName == "30路"){
+                            busNameNorth = "30路北线"
+                            busNameSouth = "30路南线"
+                            busline.getBusList(busNameNorth);
+                            busline.getBusList(busNameSouth);
+                        }
+                        //其它正常情况
+                        else{
+                            busline.getBusList(busName);
+                            buslineDown.getBusList(busName);
+                        }
+                    }
+                }
+
+                busSearch();
+            }
+        });
+    }
+
+    //公交轨迹线路存入数据库
+    function updatePoints(name,start,end,pts,status,callBack){
+        $.ajax({
+			url: '/admin/BusLinesUpdatePoints',
+			type: 'POST',
+            data: JSON.stringify({
+                name:name,
+                start:start,
+                end:end,
+                pts:pts,
+                status:status,
+            }),
+            contentType: "application/json; charset=utf-8",
+			success: function(data){
+                callBack(data);
+			},
+			error: function(error){
+				alert('ERROR');
+			}
+		});
+    }
+
+
+    function showMap(lineid, names, line_number){
+        $('#my-modify-modal').on('shown.bs.modal', function (){
+            drawMap("allmap",lineid, names, line_number);
+            loadJScript("allmap","drawMap");
+        });
+        $('#my-modify-modal').modal({backdrop:false, keyboard:false});
+    }
+
+    function updateWindow(){
+        $('#my-update-modal').modal({backdrop:false, keyboard:false});
+    }
+    function updateStart(){
+
+        $('#update-start-btn').attr("disabled","true");
+
+        drawFakeMap("update-map");
+        loadJScript("update-map","drawFakeMap");
+    }
+</script>
+<style>
+    @media screen and (max-width:767px){    /*ipad width 768 */
+        .modal-body{max-width:100%;}
+        .modal-content{max-width: 100%;}
+        #allmap{max-width: 100%;}
+
+    }
+    /*查询框*/
+    .search-bar{
+        padding: 10px;
+        padding-left: 16px;
+    }
+    #update-info{
+        text-align:left;
+        float:left;
+        overflow-y:scroll;
+    }
+    select{
+        border: 1px solid #8c8c8c;
+        background-color: #fff;
+        max-width:100px;
+    }
+</style>
+<div id="mainPage" class="main-page" data-url="/admin/BusLines">
+    <div class="col-md-12 col-sm-12 col-xs-12">
+
+    <div class="search-bar" style="padding-top:10px">
+        <input type="text" id="line_number" placeholder="请输入路线"/>
+        <button type="button" onclick="searchKeyWordChanged()">查询</button>
+        <button type="button" onclick="searchSuspectedData()"><font color="red">可疑数据查询</font></button>
+    </div>   
+        <div class="well">
+			<div class="bg-blue well-header">
+                <span>公交路线列表</span>
+                <button type="button" class="btn btn-default" onclick="updateWindow()">更新日志</button>
+            </div>
+            <div class="table-responsive" style="">
+            <table class="table table-hover">
+                <thead class="bordered-darkorange">
+                    <tr>
+                        <th> 路线 </th>
+                        <th> 方向 </th>
+                        <th> 首班时间 </th>
+                        <th> 末班时间 </th>
+                        <th style="padding-bottom:5px;">
+                          <% if @suspect == 0 %>
+                          <select id="busstatusTypeSelector" onchange="searchKeyWordChanged()">
+                          <% else %>
+                          <select id="busstatusTypeSelector" onchange="searchSuspectedData()" >
+                          <% end %> 
+                              <option value="2">全部</option>
+                              <option value="0">停运</option>
+                              <option value="1">在运</option>
+                          </select>
+                        </th>
+                        <th style="padding-bottom:5px;">
+                          <% if @suspect == 0 %>
+                          <select id="buskindTypeSelector" onchange="searchKeyWordChanged()">
+                          <% else %>
+                          <select id="buskindTypeSelector" onchange="searchSuspectedData()" >
+                          <% end %> 
+                              <option value="0">全部</option>
+                              <option value="1">公交线路</option>
+                              <option value="2">轨交线路</option>
+                              <option value="3">有轨线路</option>
+                              <option value="4">步行线路</option>
+                          </select>
+                        </th>
+                        <th> 操作 </th>
+                    </tr>
+                </thead>
+            <tbody>
+              <% @result.each_with_index do |item,index| %>
+                <tr>
+
+                  <td><%= item.name %></td>
+                  <td><%= item.direction %></td>
+                  <td><%= item.start_time.strftime("%H:%M") %></td>
+                  <td><%= item.end_time.strftime("%H:%M") %></td>
+                  <% if item.is_inactive == false %>
+                    <td> 在运 </td>
+                  <% elsif item.is_inactive == true %>
+                    <td>  <font color="red">停运</font> </td>
+                  <% else %>
+                    <td> ERROR SOURCE </td>
+                  <% end %>
+
+                  <% if item.category_id == 50 %>
+                    <td> 公交线路 </td>
+                  <% elsif item.category_id == 1 %>
+                    <td> 轨交线路 </td>
+                  <% elsif item.category_id == 30 %>
+                    <td> 有轨线路 </td> 
+                  <% elsif item.category_id == 2 %>
+                    <td> 步行线路 </td>
+                  <% else %>
+                    <td> ERROR SOURCE </td>
+                  <% end %>
+
+                  <td>
+                      <button id="buttonInactive" onclick="bus_linesStatusChange('<%= item.id %>',true)" <%=(item.is_inactive == true) ? 'disabled style=color:#afafaf;' : ''%> > 停运 </button>
+                      <button id="buttonActive" onclick="bus_linesStatusChange('<%= item.id %>',false)" <%=(item.is_inactive == false) ? 'disabled style=color:#afafaf;' : ''%> > 在运 </button>
+                      <button onclick="checkStations('<%= item.id %>','<%= item.name %>','<%= item.guid %>','<%= item.last_update %>'); showMap('<%= item.id %>','<%= item.name %>', '<%= item.name.to_i %>')"> 查看 </button>
+
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+            </table>
+            <!-- 翻页 -->
+	        <div class="footer" style="">
+	          <%= will_paginate @result,:container=>false,:previous_label=>'<span>&laquo</span>',:next_label=>'<span>&raquo</span>' %>
+	          <% if @pages == 1 %>
+	            <span></span>
+	          <% else %>
+	            <input type="text" id="page" onkeyup="this.value=this.value.replace(/[^\d]/g,'')" onafterpaste="this.value=this.value.replace(/[^\d]/g,'')" style="width:30px;"/>
+	            <button type="button" onclick="toPage('<%= @pages %>')">跳转</button>
+	          <% end %>
+	        </div>
+	        <div class="clearfix"></div>
+
+        </div>
+        </div>
+    </div>
+    <!-- 查看 -->
+    <div class="modal fade" id="my-modify-modal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" style="text-align: center;">
+     <div class="modal-dialog" role="document" style="width:auto">
+       <div class="modal-content" style="width: 700px;height:auto;margin-left: auto;margin-right: auto;margin-top: 120px;">
+         <div class="modal-body">
+           <h2 type="textfield" name="title" id="title" style="border-bottom:1px solid #eee;padding-bottom:10px;"></h2>
+             <div class="clearfix"></div>
+             <div  class="modify-content"style="margin-top: 10px;">
+                <div align='center'>
+                  <table border=1>
+                    <tr>
+                      <td>ID: </td>
+                      <td><div id="bus_id"></td>
+                    </tr>
+                    <tr>
+                      <td>Guid: </td>
+                      <td><div id="bus_guid"></div></td>
+                    </tr>
+                    <tr>
+                      <td>更新时间: </td>
+                      <td><div id="bus_update"></td>
+                    </tr>
+                  </table>
+                </div>
+                 <div type="textfield" name="bus_station_name" id="bus_station_name" style="float:left; margin-right:20px; overflow-y:scroll; height:300px;"></div>
+                 <!-- <div id="r-result" style="max-width:36%;float:left;overflow-y:scroll;height:300px;"></div> -->
+                 <div id="allmap" style="width:auto;height:280px; "></div>
+             </div>
+
+             <div calss="modal-footer" style="float:right;padding-top:10px;">
+               <button type="button"  class="btn btn-primary" data-dismiss="modal">确定</button>
+             </div>
+         	<div class="clearfix"></div>
+           </div>
+         </div>
+       </div>
+     </div>
+
+
+
+     <!-- 更新 -->
+     <div class="modal fade" id="my-update-modal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" style="text-align: center;">
+      <div class="modal-dialog" role="document" style="width:auto">
+        <div class="modal-content" style="width: 700px;height:440px;margin-left: auto;margin-right: auto;margin-top: 120px;">
+          <div class="modal-body">
+            <h2 type="textfield" name="title" style="padding-bottom:10px;margin:0;">更新日志</h2>
+
+            <button type="button" class="btn btn-primary" onclick="updateStart()" id="update-start-btn">开始更新</button>
+
+              <div  class="modify-content"style="margin-top: 10px;" id="update-content">
+                  <div class="table-responsive" style="height:270px;">
+                    <table class="table table-hover" id="update-info">
+                        <tr>
+                            <th> 公交线路名称 </th>
+                            <th> 状态 </th>
+                        </tr>
+                    </table>
+                  </div>
+                  <div id="update-map" style="width:auto;height:auto; "></div>
+                  <div type="textfield" id="count-info" style="padding-top:4px;"></div>
+              </div>
+              <div calss="modal-footer" style="float:right;">
+                <button type="button" class="btn btn-primary" data-dismiss="modal">关闭</button>
+              </div>
+          	  <div class="clearfix"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+</div>

@@ -1,0 +1,357 @@
+<script type="text/javascript" src="http://api.map.baidu.com/api?v=2.0&ak=py0HjwCUjEXL9gNnA6FoY3ckQxO7iSLp"></script>
+<script type="text/javascript" src="http://developer.baidu.com/map/jsdemo/demo/convertor.js"></script>
+<script type="text/javascript">
+suspect = <%=@suspect %>;
+	window.onload = function(){
+    	if('<%=params[:status]%>' == ''){
+            $('#stationTypeSelector').val(1);
+        }
+        else{
+            $('#stationTypeSelector').val('<%=params[:status]%>');
+        }
+        if('<%=params[:station]%>' == ''){
+            $('#stationsTypeSelector').val(0);
+        }
+        else{
+            $('#stationsTypeSelector').val('<%=params[:station]%>');
+        }
+        if('<%=params[:page]%>' == ''){
+            $('#page').val(1);
+        }
+        else{
+            $('#page').val('<%=params[:page]%>');
+        }
+        if('<%=params[:station_name]%>' == 'undefined'){
+        	$('#station_name').val('');
+        }
+        else{
+        	$('#station_name').val('<%=params[:station_name]%>');
+        }
+
+        if('<%=params[:station_code]%>' == 'undefined'){
+        	$('#station_code').val('');
+        }
+        else{
+        	$('#station_code').val('<%=params[:station_code]%>');
+        }
+    }
+    function searchKeyWordChanged(){
+        var station_name = $('#station_name').val();
+        var station_code = $('#station_code').val();
+        var statusType = $('#stationTypeSelector').val();
+        var stationType = $('#stationsTypeSelector').val();
+        suspect = 0;
+        window.location.replace('/admin/BusStation?status='+statusType+'&station_code='+station_code+'&station_name='+station_name+'&station='+'&suspect='+suspect+'&page=1'); 
+    }
+    function searchSuspectedData(){
+        var station_name = $('#station_name').val();
+        var station_code = $('#station_code').val();
+        var statusType = $('#stationTypeSelector').val();
+        var stationType = $('#stationsTypeSelector').val();
+        suspect = 1;
+        window.location.replace('/admin/BusStation?status='+statusType+'&station_code='+station_code+'&station_name='+station_name+'&station='+stationType+'&suspect='+suspect+'&page=1'); 
+    }
+    function toPage(pages){
+        var page = $('#page').val();
+        var station_name = $('#station_name').val();
+        var station_code = $('#station_code').val();
+        var statusType = $('#stationTypeSelector').val();
+        var stationType = $('#stationsTypeSelector').val();
+        if (parseInt(page) > parseInt(pages)){page = pages;}
+        if (parseInt(page) == 0){page = 1;}
+        window.location.replace('/admin/BusStation?status='+statusType+'&station_code='+station_code+'&station_name='+station_name+'&station='+stationType+'&suspect='+suspect+'&page='+page);
+    }
+    function modifyPos(id,longi,lati,name){
+    	$('#title').empty();
+        $('#itemId').val(id);
+        $('#itemlongitude').val(longi/100000);
+        $('#itemlatitude').val(lati/100000);
+        $('#my-modify-modal').modal();
+        var names = name + '坐标修改'
+        $('#title').append(names);
+    }
+    function checkstation(stationid,names,guid,update){
+      $('#bus_id').text(stationid);
+      $('#bus_guid').text(guid);
+      $('#bus_update').text(update);
+    	$('#my-check-modal').modal();
+    	getLine(stationid,names,function(data){
+    		if(typeof(data) == 'object'){
+    			var html = "<div align='center'><table border=1>";
+    			count = 1;
+    			for(var k in data){
+    				html += "<tr>";
+    				html += "<td>";
+    				html += count;
+    				html += ".       ";
+    				html += "</td>";
+    				html += "<td>";
+    				html += data[k].line.name;
+    				html += "</td>";
+    				html += "</tr>";
+    				count += 1;
+    			}
+    			html += "</table></div>"
+    			$('#bus_station_name').append(html);
+    			var name = names + '线路及地图展示'
+    			$('#ttitle').append(name);
+    			console.log(data);
+    		}
+    	});
+    	$('#bus_station_name').empty();
+    	$('#ttitle').empty();
+    }
+    function getLine(stationid,names,callBack){
+    	$.ajax({
+			url: '/admin/BusStation/getLines',
+			type: 'GET',
+            data: {
+                stationid:stationid,
+            },
+			success: function(data){
+				callBack(data);
+			}
+		});
+    }
+
+    function submitModify(){
+        $.ajax({
+			url:'/admin/BusStationSubmitModify',
+			type:'post',
+			data:$('#modify-form').serialize(),
+			success: function(data){
+				if(data == "1"){
+					alert('更新成功');
+					location.reload();
+				}
+                else if (data == "-1") {alert('更新失败，请填写经度！');}
+                else if (data == "-2") {alert('更新失败，请填写纬度！')}
+                else if (data == "-3") {alert('更新失败，请输入正确的经纬度！')}
+                else {alert('更新失败，请稍后再试！');}
+			},
+			error: function(error){ 
+				alert('更新失败，请稍后再试！');
+			}
+		});
+    }
+
+    function showMap(longitude, latitude){
+        $('#my-check-modal').on('shown.bs.modal', function (){
+            drawMap("allmap",longitude, latitude);
+            loadJScript("allmap","drawMap");
+        });
+        $('#my-check-modal').modal({backdrop:false, keyboard:false});
+    }
+
+    function loadJScript(elementId,file) {
+        var script = document.createElement(elementId);
+        script.type = "text/javascript";
+        script.src = "http://api.map.baidu.com/api?v=2.0&ak=py0HjwCUjEXL9gNnA6FoY3ckQxO7iSLp7&callback=" + file;
+        document.body.appendChild(script);
+    }
+
+    function drawMap(elementId, longitude, latitude) {
+      longi = longitude/100000;
+      lati = latitude/100000;
+      // 百度地图API功能
+      var map = new BMap.Map(elementId);            // 创建Map实例
+      map.centerAndZoom(new BMap.Point(longi, lati), 19);
+      map.enableScrollWheelZoom();                 //启用滚轮放大缩小
+
+      map.clearOverlays(); 
+	  var new_point = new BMap.Point(longi, lati);
+	  var marker = new BMap.Marker(new_point);  // 创建标注
+	  map.addOverlay(marker);              // 将标注添加到地图中
+	  map.panTo(new_point);   
+
+        //左上角，添加默认缩放平移控件
+      var top_left_navigation = new BMap.NavigationControl();
+      map.addControl(top_left_navigation);
+
+    }
+    
+</script>
+<style>
+    /*查询框*/
+    .search-bar{
+        padding: 10px;
+        padding-left: 16px;
+    }
+    #update-info{
+        text-align:left;
+        float:left;
+        overflow-y:scroll;
+    }
+    select{
+        border: 1px solid #8c8c8c;
+        background-color: #fff;
+        max-width:100px;
+    }
+</style>
+<div id="mainPage" class="main-page" data-url="/admin/BusStation">
+    <div class="col-md-12 col-sm-12 col-xs-12">
+
+        <div class="search-bar" style="padding-top:10px">
+            <input type="text" id="station_name" placeholder="请输入站点名称"/>
+            <input type="text" id="station_code" placeholder="请输入站点编号"/>
+            <button type="button" onclick="searchKeyWordChanged()">查询</button>
+            <button type="button" onclick="searchSuspectedData()"><font color="red">可疑数据查询</font></button>
+        </div>
+        <div class="well">
+			<div class="bg-blue well-header">
+                <span>公交站台列表</span>
+            </div>
+            <div class="table-responsive" style="">
+            <table class="table table-hover">
+                <thead class="bordered-darkorange">
+                    <tr>
+                        <th> 站台名称 </th>
+                        <th> 站台编号 </th>
+                        <th> 经度 </th>
+                        <th> 纬度 </th>
+                        <th style="padding-bottom:5px;">
+                          <% if @suspect == 0 %>
+                          <select id="stationTypeSelector" onchange="searchKeyWordChanged()">
+                          <% else %>
+                          <select id="stationTypeSelector" onchange="searchSuspectedData()" >
+                          <% end %>
+                              <option value="2">全部</option>
+                              <option value="0">停运</option>
+                              <option value="1">在运</option>
+                          </select>
+                        </th>
+                        <th style="padding-bottom:5px;">
+                          <% if @suspect == 0 %>
+                          <select id="stationsTypeSelector" onchange="searchKeyWordChanged()">
+                          <% else %>
+                          <select id="stationsTypeSelector" onchange="searchSuspectedData()" >
+                          <% end %>
+                         
+                              <option value="0">全部</option>
+                              <option value="1">轨交</option>
+                              <option value="2">公交</option>
+                              <option value="3">有轨电车</option>
+                          </select>
+                        </th>
+                        <th> 操作 </th>
+                    </tr>
+                </thead>
+            <tbody>
+              <% @result.each do |item| %>
+                <tr>
+                  <td><%= item.c_name  %></td>
+                  <td><%= item.code  %></td>
+                  <td><%= item.longitude.to_f/100000 %></td>
+                  <td><%= item.latitude.to_f/100000 %></td>
+                  <% if item.is_inactive == false %>
+                    <td> 在运 </td>
+                  <% elsif item.is_inactive == true %>
+                    <td>  <font color="red">停运</font> </td>
+                  <% else %>
+                    <td> ERROR SOURCE </td>
+                  <% end %>
+                  <% if item.category == 1 %>
+                    <td> 轨交 </td>
+                  <% elsif item.category == 50 %>
+                    <td> 公交 </td>
+                  <% elsif item.category == 30 %>
+                    <td> 有轨电车 </td>
+                  <% else %>
+                    <td> ERROR SOURCE </td>
+                  <% end %>
+                  <td>
+                  <button onclick="modifyPos('<%= item.id %>','<%= item.longitude %>','<%= item.latitude %>','<%= item.c_name %>')"> 修改坐标 </button>
+                  <button onclick="checkstation('<%= item.id %>','<%= item.c_name %>','<%= item.guid %>','<%= item.last_update %>');showMap('<%= item.longitude %>','<%= item.latitude %>')"> 查看 </button>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+            </table>
+            <!-- 翻页 -->
+	        <div class="footer" style="">
+	          <%= will_paginate @result,:container=>false,:previous_label=>'<span>&laquo</span>',:next_label=>'<span>&raquo</span>' %>
+	          <% if @pages == 1 %>
+	            <span></span>
+	          <% else %>
+	            <input type="text" id="page" onkeyup="this.value=this.value.replace(/[^\d]/g,'')" onafterpaste="this.value=this.value.replace(/[^\d]/g,'')" style="width:30px;"/>
+	            <button type="button" onclick="toPage('<%= @pages %>')">跳转</button>
+	          <% end %>
+	        </div>
+	        <div class="clearfix"></div>
+
+        </div>
+        </div>
+    </div>
+    
+
+     <!-- 修改 -->
+   <div class="modal fade" id="my-modify-modal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" style="text-align: center;">
+     <div class="modal-dialog" role="document">
+       <div class="modal-content" style="width: 500px;height:240px;margin-left: auto;margin-right: auto;margin-top: 120px;">
+         <div class="modal-body">
+           <h2 type="textfield" name="title" id="title" style="border-bottom:1px solid #eee;padding-bottom:10px;"></h2>
+             <form id="modify-form" style="position: relative;margin:0;" action="/admin/BusStationSubmitModify" method="post">
+                 <div class="clearfix"></div>
+                 <div  class="modify-content"style="margin-top: 20px;">
+                 	<input hidden name="itemId" id="itemId" value=""/>
+                     <div class="modify-input">
+                         <label>经度</label>
+                         <input id="itemlongitude" name="itemlongi" placeholder="请填写经度"/>
+                     </div>
+                     <div class="modify-input">
+                         <label>纬度</label>
+                         <input id="itemlatitude"  name="itemlati" placeholder="请填写纬度"/>
+                     </div>
+                 </div>
+                 <div calss="modal-footer" style="float:right;padding-top:10px;">
+                   <button type="button" class="btn btn-primary" onclick="submitModify();">确定</button>
+                   <button type="button" class="btn btn-default" data-dismiss="modal";>取消</button>
+                 </div>
+             </form>
+           </div>
+         </div>
+       </div>
+     </div>
+
+    <!-- 查看 -->
+    <div class="modal fade" id="my-check-modal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" style="text-align: center;">
+     <div class="modal-dialog" role="document" style="width:auto">
+       <div class="modal-content" style="width: 700px;height:auto;margin-left: auto;margin-right: auto;margin-top: 120px;">
+         <div class="modal-body">
+           <h2 type="textfield" name="ttitle" id="ttitle" style="border-bottom:1px solid #eee;padding-bottom:10px;"></h2>
+             <div class="clearfix"></div>
+             <div  class="modify-content"style="margin-top: 10px;">
+                <div align='center'>
+                  <table border=1>
+                    <tr>
+                      <td>ID: </td>
+                      <td><div id="bus_id"></td>
+                    </tr>
+                    <tr>
+                      <td>Guid: </td>
+                      <td><div id="bus_guid"></div></td>
+                    </tr>
+                    <tr>
+                      <td>更新时间: </td>
+                      <td><div id="bus_update"></td>
+                    </tr>
+                  </table>
+                </div>
+                 <div type="textfield" name="bus_station_name" id="bus_station_name" style="float:left; margin-right:20px; overflow-y:scroll; height:300px;"></div>
+                 
+                 <div id="allmap" style="width:auto;height:280px; "></div>
+             </div>
+
+             <div calss="modal-footer" style="float:right;padding-top:10px;">
+               <button type="button"  class="btn btn-primary" data-dismiss="modal">确定</button>
+             </div>
+         	<div class="clearfix"></div>
+           </div>
+         </div>
+       </div>
+     </div>
+
+     
+
+
+</div>

@@ -1,0 +1,475 @@
+<div id="mainPage" class="main-page" data-url="/admin/web_region">
+	<div id="allmap" style="overflow:hidden;zoom:1;position:relative;">
+		<div id="map" style="height:100%;-webkit-transition: all 0.5s ease-in-out;transition: all 0.5s ease-in-out;"></div>
+		<div id="showPanelBtn" onclick = "showPanel()">显示工具栏<br/><</div> 
+	    <div id="panelWrap">
+	        <div class="regions-nav">
+				<ul id="regionUl" class="left-page-ul nav">
+					<li id="addNewRegion">
+						<a onclick="addRegion()">
+							<span class="glyphicon glyphicon-plus-sign"></span>
+							<span>添加区域</span>
+						</a>
+					</li>
+					<% @result.each_with_index do |item,index| %>
+						<li id='<%= item.name %>' class="">
+							<a onclick="regionChanged('<%= item.name %>')">
+								<span> <%= item.name %> </span>
+								<span class="glyphicon glyphicon-trash" style="float:right;" onclick="deleteRegion('<%= item.name %>')"></span>
+							</a>
+						</li>
+					<% end %>
+				</ul>
+			</div>
+	    </div>
+	</div>
+</div>
+</div>
+<!-- 新建区域名 -->
+<div class="modal fade" id="regionCreateWindow" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" data-backdrop="static" style="margin:0 auto; text-align: center;">
+  <div class="modal-dialog" role="document">
+	<div class="modal-content">
+	  <div class="modal-body">
+		  <h2 style = 'margin: 0 auto;padding-bottom:10px;'>新建区域</h2>
+		  	<div class="create-region">
+  				<input type="text" style="padding:4px;border-radius:4px;border:1px solid #afafaf"id="regionName"/>
+  			</div>
+	  </div>
+	  <div class="modal-footer" style="padding-top:10px;">
+		<button id="region-name-submit" class="btn btn-primary" onclick="createRegion()">创建</button>
+		<button type="button" class="btn btn-default" data-dismiss="modal">取消</button>
+	  </div>
+	  <div class="clearfix"></div>
+	</div>
+  </div>
+</div>
+
+<style type="text/css">
+	#allmap {width:100%;height: 100%;overflow: hidden;}
+	#showPanelBtn{
+		background-color: red;
+		position:absolute;
+		font-size:14px;
+		top:50%;
+		margin-top:-95px;
+		right:0px;
+		width:34px;
+		padding:10px 10px;
+		color:black;
+		cursor:pointer;
+		text-align:center;
+		height:170px;
+		rgba(255,255,255,0.9);
+		-webkit-transition:  all 0.5s ease-in-out;
+		transition: all 0.5s ease-in-out;
+		font-family:'微软雅黑';
+		font-weight:bold;
+	}
+	#panelWrap{
+		width:0px;
+		position:absolute;
+		top:0px;
+		right:0px;
+		height:100%;
+		border:1px solid #eee;
+		background-color: #fff;
+		overflow:auto;
+		-webkit-transition: all 0.5s ease-in-out;
+		transition: all 0.5s ease-in-out;
+	}
+	#regionName{
+		width:90%;
+		margin:10px;
+	}
+	.left-page-ul li.active {
+		background: #eee;
+		color: #0085D0;
+		border-top:1px solid #ddd;
+		border-bottom:1px solid #ddd;
+	}
+	.glyphicon-trash:hover{
+		color:#f91717;
+	}
+</style>
+<script type="text/javascript" src="http://api.map.baidu.com/api?v=2.0&ak=5E5EE28a7615536d1ffe2ce2a3667859"></script>
+<script type="text/javascript">
+	var ENABLE_DRAWING								//绘制地图开关
+
+	//页面打开时调整高度，－104px是head和title的高度
+	window.onload = function(){
+		$('#mainPage').css("height",$(window).height()-104 + "px");
+	};
+
+	initMap('',false);								//初始地图只能看不能画
+
+	function initMap(region_name,ENABLE_DRAWING){
+		//先取之前保存好的点画线
+		getPrevPoints(region_name,function(data){
+			if(typeof(data) == 'object'){
+				//def variables
+				var TRANS_RATIO = 1000000;			//float => int 换算比率 1000000
+				var polyLinePoints = [];			//组成prevPolyLine的点集
+				var order;							//表示在该区域名下的第几个点
+				var jsons,overlays = [],points,pointArray = [];
+				var styleOptions = {				//polyLine样式
+					strokeColor:"#7b7af7",    		//边线颜色。
+					fillColor:"#7b7af7",      		//填充颜色。当参数为空时，圆形将没有填充效果。
+					strokeWeight: 2,       			//边线的宽度，以像素为单位。
+					strokeOpacity: 1,   			//边线透明度，取值范围0 - 1。
+					fillOpacity: 0.1,     			//填充的透明度，取值范围0 - 1。
+					strokeStyle: 'solid' 			//边线的样式，solid或dashed。
+				}
+
+				//init map
+				var map = new BMap.Map('map', {enableMapClick:false});	//构造底图时，关闭底图可点功能
+				var center = new BMap.Point(120.628132,31.311971);
+				map.centerAndZoom(center, 12);
+				//map.enableScrollWheelZoom();
+
+				//左上角，添加默认缩放平移控件
+				var top_left_navigation = new BMap.NavigationControl();
+				map.addControl(top_left_navigation);
+
+				//database回传数据
+				var lng = new Array();
+				var lat = new Array();
+				for(var k in data){
+					if (typeof(data[k]) != 'undefined') {
+						lng.push(parseFloat(data[k].web_region_geos.longitude)/TRANS_RATIO);
+						lat.push(parseFloat(data[k].web_region_geos.latitude)/TRANS_RATIO);
+					}
+				}
+				//追踪到当前区域
+				if (lng[0] != null){
+					center = new BMap.Point(lng[0],lat[0]);
+					map.centerAndZoom(center, 12);
+				}
+				//画折线
+				for(var i = 0; i < lng.length; i++){
+					polyLinePoints.push(new BMap.Point(lng[i],lat[i]));
+				}
+				var polyLine = new BMap.Polyline(polyLinePoints,{strokeColor:"blue", strokeWeight:2, strokeOpacity:0.5});
+				map.addOverlay(polyLine);
+				order = lng.length;
+
+				//单击事件
+				var clickHandler = function(e){
+					var lng = e.point.lng;
+					var lat = e.point.lat;
+					polyLinePoints.push(new BMap.Point(e.point.lng, e.point.lat));
+					insertPoint(region_name,lng*TRANS_RATIO,lat*TRANS_RATIO,order);
+					DrawPolyline(polyLinePoints);
+					order++;
+				}
+
+				//左键单击画点
+				if(ENABLE_DRAWING == true){
+					map.addEventListener("click", clickHandler);
+				}
+
+				// //右键显示菜单
+				// var menu = new BMap.ContextMenu();
+				// var txtMenuItem = [
+				// 	{
+				// 		text:'撤销',
+				// 		callback:function(){
+				// 			if(ENABLE_DRAWING == true){
+				// 				if(order > 0){
+				// 					order--;
+				// 					polyLinePoints.pop();
+				// 					deletePoint(region_name,order);
+				// 					DrawPolyline(polyLinePoints);
+				// 				}
+				// 				else{alert("已经没有点可以撤销了")}
+				// 			}else{alert("您已结束绘制地图！")}
+				// 		}
+				// 	},
+				// 	{
+				// 		text:'清空',
+				// 		callback:function(){
+				// 			if(ENABLE_DRAWING == true){
+				// 				var clearConfirm = confirm("清空不可撤销,是否确认全部清空？")
+				// 				if(clearConfirm == true){
+				// 					//清空地图上覆盖物
+				// 					map.clearOverlays();
+				// 					//清空数据库数据
+				// 					clearPoints(region_name);
+				// 					//清空折线点集中的点
+				// 					while(order > 0){
+				// 						polyLinePoints.pop();
+				// 						order--;
+				// 					}
+				// 				}
+				// 			}else(alert("您已结束绘制地图！"))
+				// 		}
+				// 	},
+				// 	{
+				// 		text:'放大',
+				// 		callback:function(){map.zoomIn()}
+				// 	},
+				// 	{
+				// 		text:'缩小',
+				// 		callback:function(){map.zoomOut()}
+				// 	},
+				// 	{
+				// 		text:'开始绘制',
+				// 		callback:function(){
+				// 			if(region_name != ''){
+				// 				map.addEventListener("click",clickHandler);
+				// 				ENABLE_DRAWING = true;
+				// 			}else{alert("初始默认地图不能绘制")}
+				// 		}
+				// 	},
+				// 	{
+				// 		text:'结束绘制',
+				// 		callback:function(){
+				// 			map.removeEventListener("click",clickHandler);
+				// 			ENABLE_DRAWING = false;
+				// 		}
+				// 	}
+				// ];
+				// for(var i=0; i < txtMenuItem.length; i++){
+				// 	menu.addItem(new BMap.MenuItem(txtMenuItem[i].text,txtMenuItem[i].callback,100));
+				// }
+				// map.addContextMenu(menu);
+				var menu = new BMap.ContextMenu();
+				var txtMenuItem = [
+					{
+						text:'撤销',
+						callback:function(){
+							if(ENABLE_DRAWING == true){
+								if(order > 0){
+									order--;
+									polyLinePoints.pop();
+									deletePoint(region_name,order);
+									DrawPolyline(polyLinePoints);
+								}
+								else{alert("已经没有点可以撤销了")}
+							}else{alert("您已结束绘制地图！")}
+						}
+					},
+					{
+						text:'清空',
+						callback:function(){
+							if(ENABLE_DRAWING == true){
+								var clearConfirm = confirm("清空不可撤销,是否确认全部清空？")
+								if(clearConfirm == true){
+									//清空地图上覆盖物
+									map.clearOverlays();
+									//清空数据库数据
+									clearPoints(region_name);
+									//清空折线点集中的点
+									while(order > 0){
+										polyLinePoints.pop();
+										order--;
+									}
+								}
+							}else(alert("您已结束绘制地图！"))
+						}
+					},
+					{
+						text:'放大',
+						callback:function(){map.zoomIn()}
+					},
+					{
+						text:'缩小',
+						callback:function(){map.zoomOut()}
+					},
+					{
+						text:'开始绘制',
+						callback:function(){
+							if(region_name != ''){
+								map.addEventListener("click",clickHandler);
+								ENABLE_DRAWING = true;
+								drawingModeChange();
+							}else{alert("初始默认地图不能绘制")}
+						}
+					},
+					{
+						text:'结束绘制',
+						callback:function(){
+							map.removeEventListener("click",clickHandler);
+							ENABLE_DRAWING = false;
+							drawingModeChange();
+						}
+					}
+				];
+				for(var i=0; i < txtMenuItem.length; i++){
+					menu.addItem(new BMap.MenuItem(txtMenuItem[i].text,txtMenuItem[i].callback,100));
+					if(i == 1 || i == 3){
+						menu.addSeparator();
+					}
+				}
+				map.addContextMenu(menu);
+				drawingModeChange();
+
+				function drawingModeChange(){
+					if(ENABLE_DRAWING == true){
+						menu.getItem(4).disable();			//右键菜单第4个为开始绘制
+						menu.getItem(5).enable();			//右键菜单第5个为结束绘制
+					}
+					else{
+						menu.getItem(5).disable();
+						menu.getItem(4).enable();
+					}
+				}
+				//添加折线
+				function DrawPolyline(polyLinePoints) {
+					map.clearOverlays();
+					polyLine = new BMap.Polyline(polyLinePoints, {strokeColor:"#7b7af7", strokeWeight:2, strokeOpacity:1});
+					map.addOverlay(polyLine);
+				}
+
+			}
+		});
+	}
+
+	//取存好的点
+	function getPrevPoints(region_name,callBack){
+		$.ajax({
+			url: '/admin/web_regionGetPoints',
+			type: 'POST',
+            data: {
+                region_name:region_name
+            },
+			success: function(data){
+				callBack(data)
+			},
+			error: function(error){
+				alert('ERROR');
+			}
+		});
+	}
+
+	//添加点
+	function insertPoint(region_name,longitude,latitude,order){
+		$.ajax({
+			url: '/admin/web_regionInsertNewPoint',
+			type: 'POST',
+            data: {
+                region_name:region_name,
+				longitude:longitude,
+				latitude:latitude,
+				order:order
+            },
+			success: function(data){
+			},
+			error: function(error){
+				alert('ERROR');
+			}
+		});
+	}
+
+	//删除点（撤销）
+	function deletePoint(region_name,order){
+		$.ajax({
+			url: '/admin/web_regionDeletePoint',
+			type: 'POST',
+            data: {
+                region_name:region_name,
+				order:order
+            },
+			success: function(data){
+				if(data != '1'){alert("DATABASE:已经没有点可以撤销了");}
+			},
+			error: function(error){
+				alert('ERROR');
+			}
+		});
+	}
+
+	//清除当前区域名下所有点
+	function clearPoints(region_name){
+		$.ajax({
+			url: '/admin/web_regionClearRegion',
+			type: 'POST',
+            data: {
+                region_name:region_name,
+            },
+			success: function(data){
+			},
+			error: function(error){
+				alert('ERROR');
+			}
+		});
+	}
+
+	//新建区域名
+	function createNewRegion(region_name){
+		$.ajax({
+			url: '/admin/web_regionCreateNewRegion',
+			type: 'POST',
+            data: {
+                region_name:region_name,
+            },
+			success: function(data){
+				if(data == "1"){window.location.reload();}
+				else{alert("添加失败请检查后重试！")}
+			},
+			error: function(error){
+				alert('ERROR');
+			}
+		});
+	}
+
+	//删除区域名
+	function deleteThisRegion(region_name){
+		$.ajax({
+			url: '/admin/web_regionDeleteRegion',
+			type: 'POST',
+            data: {
+                region_name:region_name,
+            },
+			success: function(data){
+				if(data == "1"){window.location.reload();}
+				else{alert("删除失败请稍后后重试！")}
+			},
+			error: function(error){
+				alert('ERROR');
+			}
+		});
+	}
+
+	//显示侧边行政区域选项
+	isPanelShow = false;
+	function showPanel(){
+	    if (isPanelShow == false) {
+	        isPanelShow = true;
+	        $("#showPanelBtn").css("right", "160px");
+	        $("#panelWrap").css("width", "160px");
+	        $("#showPanelBtn").html("隐藏工具栏<br/>>");
+	    } else {
+	        isPanelShow = false;
+	        $("#showPanelBtn").css("right", "0px");
+	        $("#panelWrap").css("width", "0px");
+	        $("#showPanelBtn").html("显示工具栏<br/><");
+	    }
+	}
+
+	//切换区域
+	function regionChanged(region_name){
+		$("#regionUl > li").each(function(index,obj){
+      		$(obj).removeClass("active");
+    	});
+		$('#'+region_name).addClass("active");
+		initMap(region_name,false);
+	}
+
+	//新建区域
+	function createRegion(){
+		var region_name = $('#regionName').val();
+		createNewRegion(region_name);
+	}
+	//添加区域按钮－>显示添加区域弹窗
+	function addRegion(){
+		$('#regionCreateWindow').modal();
+	}
+
+	//删除区域
+	function deleteRegion(region_name){
+		var deleteConfirm = confirm("是否确认删除？");
+		if(deleteConfirm == true){
+			deleteThisRegion(region_name);
+		}
+	}
+</script>

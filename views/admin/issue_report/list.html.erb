@@ -1,0 +1,153 @@
+
+<script type="text/javascript">
+
+  function status_type(mystatus){
+    console.log("test selected " + mystatus);
+    window.location.replace('/admin/issue_report?statustype=' + mystatus + '&page=1');
+    
+  }
+
+  function changecomment(myid,mycomment){
+    console.log(myid);
+    $('#my_id').val(myid);
+    $('#my_comment').val(mycomment);
+    $('#my-comment-modal').modal();  
+  }
+
+  function complete(){
+    $("#comment-form").submit();
+  }
+
+
+</script>
+
+<style type="text/css">
+  @media screen and (max-width:767px){    /*ipad width 768 */
+        .modal-body{max-width:100%;}
+        .modal-content{max-width: 100%;}
+        #large-poi-map{max-width: 100%;}
+
+    }
+
+   .table>tbody>tr>td{
+      border-top: 0px;
+      height:20px;
+   }
+
+   #notremark{
+      border-top: 1px solid #ddd;
+   }
+
+</style>
+
+<div id="mainPage" class="main-page" data-url="/admin/issue_report">
+    <div class="col-md-12 col-sm-12 col-xs-12" style="margin-top:12px;">
+    <div class="well">
+      <div class="bg-blue well-header">
+        <span>用户反馈列表</span>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-hover" border="0" cellspacing="1">
+          <thead class="bordered-darkorange">
+            <tr>
+              <th>编号</th>
+              <th>描述</th>       
+              <th>日期</th>
+              <th>类型</th>
+              <th>联系方式</th>
+           <!--    暂不显示udid
+              <th>udid</th> -->
+              <th>
+                  <div class="btn-group" >
+                  <button class="btn btn-default btn-sm dropdown-toggle" style="color: black" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <%= if @status == "0" then "全部" elsif @status == "1" then "已处理" elsif @status == "5" then "待处理" elsif @status =="3" then "已忽略" else "全部" end %><span class="caret"></span>
+                  </button>
+                  <ul class="dropdown-menu">
+                    <li>
+                      <a onclick="status_type('0');" >全部</a>
+                    </li>
+                    <li>
+                      <a onclick="status_type('5');" >待处理</a>
+                    </li>
+                    <li>
+                      <a onclick="status_type('1');" >已处理</a>
+                    </li>
+                    <li>
+                      <a onclick="status_type('3');">已忽略</a>
+                    </li>
+                  </ul>
+                </div>
+              </th>
+              <th>机型</th>
+              <!-- <th>备注</th> -->
+              <th colspan="2">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+          <% @result.each do |item|%>
+            <tr id="notremark">
+              <td style="width: 10%;"><%= item.id%></td>
+              <td style="width: 40%;"><%= item.description%></td>
+              
+              <td style="width: 10%;"><%= item.date.to_date%></td>
+              <td style="width: 10%;"><%= if item.contact_type_id == 1 then "手机" elsif item.contact_type_id == 2 then "QQ" elsif item.contact_type_id == 3 then "新浪微博" elsif item.contact_type_id == 4 then "腾讯微博" elsif item.contact_type_id == 5 then "微信" elsif item.contact_type_id == 6 then "邮箱" else "其他" end %></td>
+              <td style="width: 16%;"><%= item.contact%></td>
+              <!-- 暂不显示udid数据
+              <td width=120px><%= item.udid%></td> -->
+              <td style="width: 10%;"><%= if item.status == 1 || item.status == 2 then "已处理" elsif item.status == 3 then "已忽略" else "待处理" end %></td>     
+              <% if item.udid =~ /^IMEI/ %>
+                  <td> Android </td>
+              <% else %>
+                  <td> iPhone </td>
+              <% end %>      
+              <!-- <td style="width: 18%;"><%= item.remark%></td> -->
+              <td style="width: 5%;"><%= button_to '忽略', {:controller => "issue_report", :action => "ignore", :id => item.id }, :method => "post", data: { confirm: '确定忽略?' } %></td>
+              <td style="width: 5%;"><input onclick="changecomment('<%= item.id %>','<%= item.remark %>');" readonly="readonly" type="button" value="处理" /></td>
+            </tr>
+            <% if item.remark.present? %>
+            <tr id="myremark">
+                  <td></td>
+                  <td style="width: 50%;" colspan="5"><span style="font-weight: bold;">备注：</span><%= item.remark%></td>
+                  <td colspan="2"></td>
+            </tr>
+            <% end %>       
+          <% end %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="clearfix">
+        <div class="footer">  
+            <%= will_paginate @result,:container => false , :previous_label => '<span>&laquo;</span>', :next_label=> '<span>&raquo;</span>' %>  
+         </div>
+         <div class="clearfix"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<div class="modal fade" id="my-comment-modal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" style="text-align: center;">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content" style="width: 500px;height:220px;margin-left: auto;margin-right: auto;margin-top: 120px;">
+          <div class="modal-body">
+            <div style="border-bottom: 2px solid #ddd;padding-bottom:4px;"><h4>处理方式或内容</h4></div>
+            <form id="comment-form" style="position: relative;margin-top:5px;" action="/admin/issue_reportComplete" method="post">
+              <input hidden name="my_id" id="my_id" value=""  />
+              <input hidden name="authenticity_token" id="authenticity_token" value=""  />
+              <div class="clearfix"></div>  
+               <div style="text-align: left;">
+                <label style="padding-top: 2px;">备注：</label><br>
+                <textarea id="my_comment" name="my_comment" style="border:1px solid #ddd;width: 100%;height: 70px;outline: none;max-height: 70px;max-width: 500px" placeholder="填写备注" value=""></textarea>   
+              </div>
+              <div calss="modal-footer" style="padding-top:5px;">
+                <button type="button" class="btn btn-primary" style="margin-top: 5px;" onclick="complete();">提交</button>
+                <button type="button" class="btn btn-primary" data-dismiss="modal" style="background-color:#eee;border-color:#eee;color:#333;margin-top: 5px;">取消</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>

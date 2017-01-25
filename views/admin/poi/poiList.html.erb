@@ -1,0 +1,567 @@
+<script type="text/javascript">
+
+    window.onload = function(){
+        //init
+        if('<%=params[:source]%>' == ''){
+            $('#sourceTypeSelector').val(2);
+        }
+        else{
+            $('#sourceTypeSelector').val('<%=params[:source]%>');
+        }
+        if('<%=params[:status]%>' == ''){
+            $('#statusTypeSelector').val(0);
+        }
+        else{
+            $('#statusTypeSelector').val('<%=params[:status]%>');
+        }
+        if('<%=params[:category]%>' == ''){
+            $('#categoryTypeSelector').val('');
+        }
+        else{
+            $('#categoryTypeSelector').val('<%=params[:category]%>');
+        }
+        if('<%=params[:page]%>' == ''){
+            $('#page').val(1);
+        }
+        else{
+            $('#page').val('<%=params[:page]%>');
+        }
+        if('<%=params[:category]%>' == ''){
+            $('#cateTypeSelector').val(0);
+        }
+        else{
+            $('#cateTypeSelector').val('<%=params[:category]%>');
+        }
+
+        $('#position').val('<%=params[:position]%>');
+    }
+
+    //来源、状态和查询触发
+    function searchKeyWordChanged(){
+        var position = $('#position').val();
+        var sourceType = $('#sourceTypeSelector').val();
+        var statusType = $('#statusTypeSelector').val();
+        var categoryType = $('#categoryTypeSelector').val();
+        window.location.replace('/admin/pointOfInterest?source='+sourceType+'&status='+statusType+'&category='+categoryType+'&position='+position+'&page=1');
+
+    }
+
+    //跳转按钮。跳转到指定页
+    function toPage(pages){
+        var page = $('#page').val();
+        var position = $('#position').val();
+        var sourceType = $('#sourceTypeSelector').val();
+        var statusType = $('#statusTypeSelector').val();
+
+        var categoryType = $('#categoryTypeSelector').val();
+        //invalid input page leads to the last page(page:输入页数,pages:总页数)
+        if (parseInt(page) > parseInt(pages)){page = pages;}
+        if (parseInt(page) == 0){page = 1;}
+        window.location.replace('/admin/pointOfInterest?source='+sourceType+'&status='+statusType+'&category='+categoryType+'&position='+position+'&page='+page);
+    }
+
+    //修改按钮,显示修改界面
+    function modifyPoi(id,pos,cate,longi,lati,pri){
+        $('#itemId').val(id);
+        $('#modify-position').val(pos);
+        $('#modify-category').val(cate);
+        $('#priority').val(pri);
+        $('#itemlongitude').val(longi/1000000);
+        $('#itemlatitude').val(lati/1000000);
+        $('#my-modify-modal').modal();
+    }
+
+    //修改界面提交按钮
+    function submitModify(){
+        $.ajax({
+			url:'/admin/pointOfInterestSubmitModify',
+			type:'post',
+			data:$('#modify-form').serialize(),
+			success: function(data){
+				if(data == "1"){
+					alert('更新成功');
+					location.reload();
+				}
+                else if (data == "-1") {alert('更新失败，请填写地址！');}
+                else if (data == "-2") {alert('更新失败，权重及经纬度必须为数字！')}
+                else if (data == "-3") {alert('更新失败，类别有误')}
+                else if (data == "-4") {alert('更新失败，请输入经度！')}
+                else if (data == "-5") {alert('更新失败，请输入纬度！')}
+                else {alert('更新失败，请稍后再试！');}
+			},
+			error: function(error){
+				alert('更新失败，请稍后再试！');
+			}
+		});
+    }
+
+    //--保留/删除--按钮，更改兴趣点status: 1=保留,2=删除
+    function poiStatusChange(id,status){
+        $.ajax({
+			url: '/admin/pointOfInterestStatusChange',
+			type: 'POST',
+            data: {
+                id:id,
+                status:status,
+            },
+			success: function(data){
+				if(data == "1"){
+					alert('更新成功');
+					location.reload();
+				}else {alert('更新失败，请稍后再试！');}
+			},
+			error: function(error){
+				alert('更新失败，请稍后再试！');
+			}
+		});
+    }
+
+    //--查看按钮--显示地图
+    function showMap(longitude,latitude,label){
+        $('#poiMap').on('shown.bs.modal', function (){
+            drawMap("large-poi-map",longitude,latitude,label);
+            loadJScript("large-poi-map","drawMap");
+        });
+        $('#poiMap').modal({keyboard:false});
+    }
+
+    //
+    function showSearchMap(){
+        var position = $('#position').val();
+        var sourceType = $('#sourceTypeSelector').val();
+        var statusType = $('#statusTypeSelector').val();
+        var categoryType = $('#categoryTypeSelector').val();
+
+        $('#poiMap').on('shown.bs.modal', function (){
+            drawSearchMap("large-poi-map",position,sourceType,statusType,categoryType);
+            loadJScript("large-poi-map","drawSearchMap");
+        });
+        $('#poiMap').modal({keyboard:false});
+    }
+
+    //百度异步加载地图
+    function loadJScript(elementId,file) {
+        var script = document.createElement(elementId);
+        console.log(script);
+        script.type = "text/javascript";
+        script.src = "http://api.map.baidu.com/api?v=2.0&ak=py0HjwCUjEXL9gNnA6FoY3ckQxO7iSLp7&callback=" + file;
+        document.body.appendChild(script);
+    }
+
+    //画图
+    function drawMap(elementId,longitude,latitude,mainLabel){
+        var transRatio = 1000000;                       //database(int) => 经纬度(float)
+        var lng = longitude/transRatio;
+        var lat = latitude/transRatio;
+        var map = new BMap.Map(elementId);              // 创建Map实例
+        var center = new BMap.Point(lng,lat);           // 创建点坐标
+
+        //prepare to init map
+        map.centerAndZoom(center,15);
+        map.enableScrollWheelZoom();                 //启用滚轮放大缩小
+
+        //左上角，添加默认缩放平移控件
+        var top_left_navigation = new BMap.NavigationControl();
+        map.addControl(top_left_navigation);
+
+        //添加marker
+        var marker = new BMap.Marker(center);
+        map.addOverlay(marker);
+
+        //添加label
+        var mainPointLabel = new BMap.Label(mainLabel,{offset:new BMap.Size(20,-10)});
+	    marker.setLabel(mainPointLabel);
+
+        //添加附近的点
+        var bs = map.getBounds();   //获取可视区域
+        var bssw = bs.getSouthWest();   //可视区域左下角
+    	var bsne = bs.getNorthEast();   //可视区域右上角
+        getAdjacentPoints(bsne.lat * transRatio, bssw.lat * transRatio, bssw.lng * transRatio, bsne.lng * transRatio, function(data){
+            if(typeof(data) == 'object'){
+                var lng = new Array();
+                var lat = new Array();
+                var label = new Array();
+                for(var k in data){
+                    if (typeof(data[k]) != 'undefined') {
+                        label.push(data[k].poi.position);
+                        lng.push(parseFloat(data[k].poi.longitude)/transRatio);
+                        lat.push(parseFloat(data[k].poi.latitude)/transRatio);
+                    }
+                }
+                for (var i = 0; i < (lng.length > 25 ? 25:lng.length); i ++) {
+                    var point = new BMap.Point(lng[i],lat[i]);
+                    var adjacentPoints = new BMap.Marker(point);
+                    map.addOverlay(adjacentPoints);
+                    var adjacentPointLabel = new BMap.Label(label[i],{offset:new BMap.Size(20,-10)});
+            	    adjacentPoints.setLabel(adjacentPointLabel);
+                }
+            }
+        });
+
+    }
+
+    //显示地图模式
+    function drawSearchMap(elementId,position,sourceType,statusType,categoryType){
+        var transRatio = 1000000;                       //database(int) => 经纬度(float)
+        var map = new BMap.Map(elementId);              // 创建Map实例
+        var center = new BMap.Point(120.628132,31.311971);           // 创建点坐标
+
+        //prepare to init map
+        map.centerAndZoom(center,15);
+        map.enableScrollWheelZoom();                 //启用滚轮放大缩小
+
+        //左上角，添加默认缩放平移控件
+        var top_left_navigation = new BMap.NavigationControl();
+        map.addControl(top_left_navigation);
+
+        getSimilarPoints(position,sourceType,statusType,categoryType,function(data){
+            if(typeof(data) == 'object'){
+                var lng = new Array();
+                var lat = new Array();
+                var label = new Array();
+                for(var k in data){
+                    if (typeof(data[k]) != 'undefined') {
+                        label.push(data[k].poi.position);
+                        lng.push(parseFloat(data[k].poi.longitude)/transRatio);
+                        lat.push(parseFloat(data[k].poi.latitude)/transRatio);
+                    }
+                }
+                for (var i = 0; i < (lng.length > 100 ? 100:lng.length); i ++) {
+                    var point = new BMap.Point(lng[i],lat[i]);
+                    var similarPoints = new BMap.Marker(point);
+                    map.addOverlay(similarPoints);
+                    var similarPointsLabel = new BMap.Label(label[i],{offset:new BMap.Size(20,-10)});
+            	    similarPoints.setLabel(similarPointsLabel);
+                }
+            }
+        });
+
+    }
+
+    function getAdjacentPoints(north,south,west,east,callBack){
+        $.ajax({
+			url: '/admin/pointOfInterestAdjacentPoints',
+			type: 'POST',
+            data: {
+                north:north,
+                south:south,
+                west:west,
+                east:east,
+            },
+			success: function(data){
+				callBack(data)
+			},
+			error: function(error){
+				alert('ERROR');
+			}
+		});
+    }
+
+    function getSimilarPoints(position,sourceType,statusType,categoryType,callBack){
+        $.ajax({
+			url: '/admin/pointOfInterestSimilarPoints',
+			type: 'POST',
+            data: {
+                position:position,
+                sourceType:sourceType,
+                statusType:statusType,
+                categoryType:categoryType,
+            },
+			success: function(data){
+				callBack(data)
+			},
+			error: function(error){
+				alert('ERROR');
+			}
+		});
+    }
+</script>
+<script type="text/javascript" src="http://api.map.baidu.com/api?v=2.0&ak=py0HjwCUjEXL9gNnA6FoY3ckQxO7iSLp"></script>
+<style>
+    /*responsive*/
+    @media screen and (max-width:767px){    /*ipad width 768 */
+        .modal-body{max-width:100%;}
+        .modal-content{max-width: 100%;}
+        #large-poi-map{max-width: 100%;}
+
+    }
+    /*general*/
+    .main-page {
+        display: inline;
+        background-color: #eee;
+    }
+    .right-header{
+        text-align: center;
+        border-bottom: 2px solid #ccc;
+    }
+
+    /*查询框*/
+    .search-bar{
+        padding: 10px;
+        padding-left: 16px;
+    }
+    .page-search-bar{
+        padding: 10px;
+    }
+    .search-bar > input{
+        padding:2px 4px;
+        border:2px solid #fff;
+        border-radius:4px;
+    }
+
+    /*弹出框及地图*/
+    #large-poi-map{
+        width:930px;height: 500px;margin: 0;font-family:"微软雅黑";
+        -webkit-box-shadow: #666 0px 0px 10px;
+    }
+    .modal-dialog{
+      width: auto!important;
+    }
+    .modal-content {
+      width: 60em;
+      height: auto;
+      margin: 0 auto;
+    }
+    .modal-body label{
+        max-width: none;
+    }
+    .modal-title{
+        border-bottom:2px solid #ddd;
+        padding-bottom:4px;
+    }
+
+    /*修改页面*/
+    .modify-content > .modify-input{
+        padding:10px;
+        max-width: 94%;
+    }
+    .modify-content > .modify-input > input{
+        border-radius: 4px;
+        border: 0.1px solid #979797;
+        padding-left: 4px;
+        padding-right: 4px;
+        width: 350px;
+        outline: none;
+        max-width: 80%;
+    }
+    .modify-content > .modify-input > select{
+        width:350px;
+        max-width: 80%;
+    }
+
+
+
+    /*------*/
+    button {
+        -webkit-border-radius: 4px;
+        background-color: #eee;
+        border: 1px solid #afafaf;
+    }
+    button:hover{background-color: #ccc;}
+
+    select{
+        border: 1px solid #8c8c8c;
+        background-color: #fff;
+        max-width:100px;
+    }
+</style>
+<div id="mainPage" class="main-page" data-url="/admin/pointOfInterest">
+    <div class="col-md-12 col-sm-12 col-xs-12">
+        
+        <div class="search-bar">
+            <input type="text" id="position" placeholder="请输入地址"/>
+            <select id="categoryTypeSelector" name="categoryTypeSelector" onchange="searchKeyWordChanged()">
+                 <option value="">全部类别</option>
+                 <option value="other">其他</option>
+                 <option value="bus">公交站</option>
+                 <option value="metro">轨交站</option>
+                 <option value="bike">公共自行车点</option>
+                 <option value="tram">有轨电车站</option>
+                 <option value="transport">交通（高速口、高铁站、城铁站、长途汽车站、四叉路口）</option>
+                 <option value="parking">停车场、停车位</option>
+                 <option value="fuel">加油站</option>
+                 <option value="food">美食</option>
+                 <option value="fun">娱乐（比如电影院、KTV、舞厅等）</option>
+                 <option value="hotel">酒店</option>
+                 <option value="shop">购物中心、商店</option>
+                 <option value="life">生活（比如美发、写真、洗车等）</option>
+                 <option value="sports">体育</option>
+                 <option value="office">办公室</option>
+                 <option value="residence">住宅</option>
+                 <option value="attraction">景点、公园</option>
+                 <option value="government">政府机构（各政府大楼、行政中心、包括派出所、居委会）</option>
+                 <option value="school">学校、培训中心</option>
+                 <option value="company">公司</option>
+             </select>
+            <button type="button" onclick="searchKeyWordChanged()">查询</button>
+        </div>
+		<div class="well">
+			<div class="bg-blue well-header">
+                <span>审核列表</span>
+                <button type="button" class="btn btn-default" onclick="showSearchMap()" style="right:0;">显示地图模式</button>
+            </div>
+            <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="bordered-darkorange">
+                    <tr>
+                        <th> 序号 </th>
+                        <th> 地址 </th>
+                        <th> 经度、纬度 </th>
+                        <th> 创建时间 </th>
+                        <th style="padding-bottom:5px;">
+                          <select id="sourceTypeSelector" onchange="searchKeyWordChanged()">
+                              <option value="2">全部</option>
+                              <option value="0">用户输入</option>
+                              <option value="1">网页抓取</option>
+                          </select>
+
+                        </th>
+                        <th style="padding-bottom:5px;">
+                          <select id="statusTypeSelector" onchange="searchKeyWordChanged()">
+                              <option value="0">全部</option>
+                              <option value="1">已保留</option>
+                              <option value="2">已删除</option>
+                              <option value="3">未审核</option>
+                          </select>
+                        </th>
+                        <th> 权重 </th>
+                        <th> 类别 </th>
+                        <th> 操作 </th>
+                    </tr>
+                </thead>
+            <tbody>
+              <% @result.each_with_index do |item,index| %>
+                <tr>
+
+                  <td><%= item.id %></td>
+                  <td><%= item.position %></td>
+                  <td><%= item.longitude.to_f/1000000 %>,<%= item.latitude.to_f/1000000 %></td>
+
+                  <td><%= item.create_time.to_date %></td>
+                  <% if item.source == 0 %>
+                    <td> 用户输入 </td>
+                  <% elsif item.source == 1 %>
+                    <td> 网页抓取 </td>
+                  <% else %>
+                    <td> ERROR SOURCE </td>
+                  <% end %>
+                  <% if item.status == 1 %>
+                    <td> 已保留 </td>
+                  <% elsif item.status == 2 %>
+                    <td> 已删除 </td>
+                  <% elsif item.status == 3 %>
+                    <td> 待审核 </td>
+                  <% else %>
+                    <td> ERROR STATUS</td>
+                  <% end %>
+                  <td><%= item.priority %></td>
+                  <td><%= Admin::PoiHelper.poi_categories1[item.category] %></td>
+                  <td>
+                      <button id="buttonKeep" onclick="poiStatusChange('<%= item.id %>',1)" <%=(item.status == 1) ? 'disabled style=color:#afafaf;' : ''%> > 保留 </button>
+                      <button id="buttonDelete" onclick="poiStatusChange('<%= item.id %>',2)" <%=(item.status == 2) ? 'disabled style=color:#afafaf;' : ''%> > 删除 </button>
+                      <button onclick="modifyPoi('<%= item.id %>','<%= item.position %>','<%= item.category %>','<%= item.longitude %>','<%= item.latitude %>','<%= item.priority %>')"> 修改 </button>
+                      <button onclick="showMap('<%= item.longitude %>','<%= item.latitude %>','<%= item.position %>')"> 查看 </button>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+            </table>
+			 </div>
+            <!-- 翻页 -->
+	        <div class="footer" style="">
+	          <%= will_paginate @result,:container=>false,:previous_label=>'<span>&laquo</span>',:next_label=>'<span>&raquo</span>' %>
+	          <% if @pages == 1 %>
+	            <span></span>
+	          <% else %>
+	            <input type="text" id="page" onkeyup="this.value=this.value.replace(/[^\d]/g,'')" onafterpaste="this.value=this.value.replace(/[^\d]/g,'')" style="width:30px;"/>
+	            <button type="button" onclick="toPage('<%= @pages %>')">跳转</button>
+	          <% end %>
+	        </div>
+	        <div class="clearfix"></div>
+
+
+        </div>
+    </div>
+
+   <!-- Map -->
+   <div class="modal fade" id="poiMap" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" data-backdrop="static" style="margin:0 auto; text-align: center;">
+     <div class="modal-dialog" role="document">
+       <div class="modal-content">
+         <div class="modal-body">
+             <h2 style = 'margin: 0 auto;padding-bottom:10px;'>兴趣点位置显示</h2>
+             <div id="large-poi-map" style="padding-top:10px">
+           </div>
+         </div>
+         <div class="modal-footer" style="padding-top:10px;">
+           <button type="button" class="btn btn-primary" data-dismiss="modal">关闭</button>
+         </div>
+         <div class="clearfix"></div>
+       </div>
+     </div>
+   </div>
+
+   <!-- 修改 -->
+   <div class="modal fade" id="my-modify-modal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" style="text-align: center;">
+     <div class="modal-dialog" role="document">
+       <div class="modal-content" style="width: 500px;height:420px;margin-left: auto;margin-right: auto;margin-top: 120px;">
+         <div class="modal-body">
+           <div class="modal-title"><h2>苏州行兴趣点审核</h2></div>
+             <form id="modify-form" style="position: relative;margin:0;" action="/admin/pointOfInterestSubmitModify" method="post">
+               <input hidden name="itemId" id="itemId" value=""/>
+               <input hidden name="authenticity_token" id="authenticity_token" value=""/>
+                 <div class="clearfix"></div>
+                 <div  class="modify-content"style="margin-top: 20px;">
+                     <div class="modify-input">
+                         <label>地址</label>
+                         <input id="modify-position" name="modify-position" placeholder="填写地址"/>
+                     </div>
+                     <div class="modify-input">
+                         <label>权重</label>
+                         <input id="priority" onkeyup="this.value=this.value.replace(/[^\d]/g,'')" onafterpaste="this.value=this.value.replace(/[^\d]/g,'')" name="priority" placeholder="0" value="" />
+                     </div>
+                     <div class="modify-input">
+                         <label>类别</label>
+                         <select id="modify-category" name="modify-category">
+                              <option value="other">其他</option>
+                              <option value="bus">公交站</option>
+                              <option value="metro">轨交站</option>
+                              <option value="bike">公共自行车点</option>
+                              <option value="tram">有轨电车站</option>
+                              <option value="transport">交通（高速口、高铁站、城铁站、长途汽车站、四叉路口）</option>
+                              <option value="parking">停车场、停车位</option>
+                              <option value="fuel">加油站</option>
+                              <option value="food">美食</option>
+                              <option value="fun">娱乐（比如电影院、KTV、舞厅等）</option>
+                              <option value="hotel">酒店</option>
+                              <option value="shop">购物中心、商店</option>
+                              <option value="life">生活（比如美发、写真、洗车等）</option>
+                              <option value="sports">体育</option>
+                              <option value="office">办公室</option>
+                              <option value="residence">住宅</option>
+                              <option value="attraction">景点、公园</option>
+                              <option value="government">政府机构（各政府大楼、行政中心、包括派出所、居委会）</option>
+                              <option value="school">学校、培训中心</option>
+                              <option value="company">公司</option>
+                          </select>
+                      </div>
+                      
+                         <div class="modify-input">
+                            <label>经度</label>
+                            <input id="itemlongitude" name="itemlongi" placeholder="请填写经度"/>
+                        </div>
+                        <div class="modify-input">
+                            <label>纬度</label>
+                            <input id="itemlatitude"  name="itemlati" placeholder="请填写纬度"/>
+                        </div>
+                 </div>
+                     
+                 <div calss="modal-footer" style="float:right;padding-top:10px;">
+                   <button type="button" class="btn btn-primary" onclick="submitModify();">确定</button>
+                   <button type="button" class="btn btn-default" data-dismiss="modal";>取消</button>
+                 </div>
+             </form>
+           </div>
+         </div>
+       </div>
+     </div>
+</div>
